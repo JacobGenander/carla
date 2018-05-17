@@ -6,7 +6,7 @@
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
-"""Basic CARLA client example."""
+"""This client is used for recording data in CARLA."""
 
 from __future__ import print_function
 

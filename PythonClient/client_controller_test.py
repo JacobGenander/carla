@@ -7,7 +7,11 @@
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
 
-"""Run: python3.5 client_controller_test.py -c CarlaSettings.ini"""
+""" This client uses a neural network to predict the throttle and brake. These
+predictions are then used as control signals, but the steer is still controled
+by the autopilot.
+
+Run: python3.5 client_controller_test.py -c CarlaSettings.ini"""
 
 from __future__ import print_function
 
@@ -91,7 +95,17 @@ def run_carla_client(args):
                 steer = pm[17]
                 acceleration_x = pm[5]
                 acceleration_y = pm[6]
+                acc_xy = np.array([acceleration_x, acceleration_y])
                 forward_speed = pm[8]
+
+                theta = np.atan(acc_xy*acc_xy/acc_xy)
+                current_acc_v = np.linalg.norm(acc_xy) * np.cos(heading_angle - theta)
+
+                #compare accelerations:
+                print("magnitude:")
+                print(np.linalg.norm(current_acc_v), desired_acc_magnitude)
+                print('vectors:')
+                print(current_acc_v, desired_acc_v)
 
                 if frame % 30 == 0:
                     rand = random.random()
@@ -105,12 +119,13 @@ def run_carla_client(args):
                     desired_acc_magnitude = -rand
 
                 # Calculate x and y components to match desired acc
-                desired_acc_x = desired_acc_magnitude * np.cos(np.deg2rad(heading_angle))
-                desired_acc_y = desired_acc_magnitude * np.sin(np.deg2rad(heading_angle))
+                desired_acc_vx = desired_acc_magnitude * np.cos(np.deg2rad(heading_angle))
+                desired_acc_vy = desired_acc_magnitude * np.sin(np.deg2rad(heading_angle))
+                desired_acc_v = [desired_acc_vx, desired_acc_vy]
                 predicted_throttle, predicted_brake = eng.eval_net_python(float(heading_angle),
                                                                           float(steer),
-                                                                          float(desired_acc_x),
-                                                                          float(desired_acc_y),
+                                                                          float(desired_acc_vx),
+                                                                          float(desired_acc_vy),
                                                                           float(forward_speed), nargout=2)
                 print(desired_acc_magnitude, predicted_throttle, predicted_brake)
 

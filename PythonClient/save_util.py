@@ -1,5 +1,5 @@
 import numpy as np
-from preprocessing.point_cloud_to_image import trim_to_roi
+from util import trim_to_roi
 import datetime
 
 ROI = 60        # Region of interest side length, in meters.

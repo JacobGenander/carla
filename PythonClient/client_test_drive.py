@@ -6,7 +6,9 @@
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
-"""Basic CARLA client example."""
+"""This client is used for driving the car with a network. The network predicts
+a path, which is then fed to pure pursuit or the MPC, which in turn produce
+control signals."""
 
 from __future__ import print_function
 
@@ -26,10 +28,13 @@ import save_util as saver
 from collections import defaultdict
 import datetime
 import torch
-from network import SmallerNetwork2
-from pure_pursuit import State, PIDControl, pure_pursuit_control, calc_target_index
+from control_module.pure_pursuit import State, PIDControl, pure_pursuit_control, calc_target_index
 import client_util
 from torch.autograd import Variable
+
+# import network architectures
+#from network import SmallerNetwork2
+from cnn_bias import CNNBiasAll
 
 argparser = argparse.ArgumentParser(description="Client to test drive our network.")
 argparser.add_argument('-v', '--verbose', action='store_true',dest='debug',
@@ -38,8 +43,8 @@ argparser.add_argument('--host', metavar='H', default='localhost',
                         help='IP of the host server (default: localhost)')
 argparser.add_argument('-p', '--port', metavar='P', default=2000, type=int,
                         help='TCP port to listen to (default: 2000)')
-#argparser.add_argument('-a', '--autopilot', action='store_true',
-#                        help='enable autopilot')
+argparser.add_argument('-a', '--autopilot', action='store_true',
+                        help='enable autopilot')
 argparser.add_argument('-i', '--images-to-disk', action='store_true',
                         help='save images to disk')
 argparser.add_argument('-c', '--carla-settings', metavar='PATH', default=None,
@@ -48,8 +53,8 @@ argparser.add_argument('-f', '--frames', default=100, type=int, dest='frames',
                         help='Number of frames to run the client')
 argparser.add_argument('--save-path', metavar='PATH', default='recorded_data/',
                         dest='save_path', help='Number of frames to run the client')
-#argparser.add_argument('-pl', '--planner-path', metavar='PATH', default=None, dest='planner_path',
-#                        help='Path to planner checkpoint')
+argparser.add_argument('-pl', '--planner-path', metavar='PATH', default=None, dest='planner_path',
+                        help='Path to planner checkpoint')
 argparser.add_argument('-n', '--name',metavar='name',default=None,dest='session_name',
                         help='Name of the recorded session')
 argparser.add_argument('-q', '--quality-level',choices=['Low', 'Epic'],type=lambda s: s.title(),default='Epic',
@@ -75,7 +80,7 @@ MOVING_AVERAGE_LENGTH = 10
 STEERING_MAX = 70 # angle in degrees
 
 
-def run_carla_client(host, port, autopilot_on, planner_path, save_images_to_disk, image_filename_format, settings_filepath):
+def run_carla_client(host, port, planner_path, save_images_to_disk, image_filename_format, settings_filepath):
 
     with make_carla_client(host, port) as client:
         print('CarlaClient connected')
@@ -102,8 +107,8 @@ def run_carla_client(host, port, autopilot_on, planner_path, save_images_to_disk
 
         scene = client.load_settings(settings)
         number_of_player_starts = len(scene.player_start_spots)
-        player_start = random.randint(0, max(0, number_of_player_starts - 1))
-        #player_start = 30
+        #player_start = random.randint(0, max(0, number_of_player_starts - 1))
+        player_start = 30
 
         # Create meta document
         saver.save_info(SAVE_PATH_SESSION, scene, args)
@@ -336,6 +341,7 @@ def main():
             run_carla_client(
                 host=args.host,
                 port=args.port,
+                planner_path=args.planner_path,
                 save_images_to_disk=args.images_to_disk,
                 image_filename_format= SAVE_PATH_RGB_IMG + 'episode_{:0>3d}/{:s}/image_{:0>5d}.png',
                 settings_filepath=args.carla_settings)

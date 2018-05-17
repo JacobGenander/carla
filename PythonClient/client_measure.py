@@ -6,7 +6,8 @@
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
-"""Basic CARLA client example."""
+"""This client is used for measuring brake, acceleration etc. It restarts when
+the vehicle has crashed or when 3 minutes have elapsed."""
 
 from __future__ import print_function
 

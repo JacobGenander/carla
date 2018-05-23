@@ -101,12 +101,12 @@ def get_input(measurements, intentions, traffic, frame, n_steps):
         frame_index = frame - past_step - 1
         # If requested frame is further into the past than frame 0, use 0
         frame_index = max(frame_index,0)
-        # Calculate relative location, forward acceleration etc.
+        # Calculate relative location, total acceleration etc.
         new_x, new_y = measurements[frame_index, [2, 3]]
         # Notice the minus signs on y and new_y because of carla's world axes!
         v_rel_x, v_rel_y = world_to_relative(x, -y, yaw, new_x, -new_y)
         acc_x, acc_y, acc_z = measurements[frame_index, [5, 6, 7]]
-        v_forward_acceleration = get_forward_acceleration(acc_x, acc_y, acc_z)
+        v_total_acceleration = get_total_acceleration(acc_x, acc_y, acc_z)
         v_forward_speed = measurements[frame_index, 8]
         v_steer, v_throttle, v_break = measurements[frame_index, [17, 18, 19]]
 
@@ -114,7 +114,7 @@ def get_input(measurements, intentions, traffic, frame, n_steps):
         frame_input = np.zeros(11)
         frame_input[0] = v_rel_x # location x relative to car
         frame_input[1] = v_rel_y # location y relative to car
-        frame_input[2] = v_forward_acceleration # forward acceleration
+        frame_input[2] = v_total_acceleration # total acceleration
         frame_input[3] = v_forward_speed # forward speed
         frame_input[4] = v_steer # steer
         frame_input[5] = intentions[frame_index][0] # intention direction
@@ -128,7 +128,7 @@ def get_input(measurements, intentions, traffic, frame, n_steps):
 
     return all_inputs
 
-def get_forward_acceleration(acc_x, acc_y, acc_z):
+def get_total_acceleration(acc_x, acc_y, acc_z):
     squares = np.power([acc_x, acc_y, acc_z], 2)
     return np.sqrt(np.sum(squares))
 
@@ -202,7 +202,6 @@ def getEulerDistance(pos_a, pos_b):
     (b_lat,b_lon) = pos_b
     dist = math.sqrt((b_lat - a_lat)**2 + (b_lon - a_lon)**2)
     return dist
-
 
 def generate_output(frame, output, path):
     if not os.path.exists(path):

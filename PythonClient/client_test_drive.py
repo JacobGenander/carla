@@ -8,7 +8,14 @@
 
 """This client is used for driving the car with a network. The network predicts
 a path, which is then fed to pure pursuit or the MPC, which in turn produce
-control signals."""
+control signals.
+
+Example run:
+python3 client_test_drive.py -f 100
+-s '/media/annaochjacob/crucial/recorded_data/carla/tmp_please_remove_me/'
+-c CarlaSettings.ini -i -n test_recording_1
+-pl '/media/annaochjacob/crucial/models/curriculum_learning/CNNBiasAll_Adam/all_time_best.pt'
+"""
 
 from __future__ import print_function
 
@@ -36,6 +43,21 @@ from torch.autograd import Variable
 #from network import SmallerNetwork2
 from cnn_bias import CNNBiasAll
 
+#-----------------------------------------------------------------------------------------
+# NOTE!!! This code is needed due to training and driving using different pytorch versions
+# Would be great if we could remove it by fixing the PyTorch version
+import torch._utils
+try:
+    torch._utils._rebuild_tensor_v2
+except AttributeError:
+    def _rebuild_tensor_v2(storage, storage_offset, size, stride, requires_grad, backward_hooks):
+        tensor = torch._utils._rebuild_tensor(storage, storage_offset, size, stride)
+        tensor.requires_grad = requires_grad
+        tensor._backward_hooks = backward_hooks
+        return tensor
+    torch._utils._rebuild_tensor_v2 = _rebuild_tensor_v2
+#-----------------------------------------------------------------------------------------
+
 argparser = argparse.ArgumentParser(description="Client to test drive our network.")
 argparser.add_argument('-v', '--verbose', action='store_true',dest='debug',
                         help='print debug information')
@@ -51,7 +73,7 @@ argparser.add_argument('-c', '--carla-settings', metavar='PATH', default=None,
                         help='Path to a "CarlaSettings.ini" file')
 argparser.add_argument('-f', '--frames', default=100, type=int, dest='frames',
                         help='Number of frames to run the client')
-argparser.add_argument('--save-path', metavar='PATH', default='recorded_data/',
+argparser.add_argument('-s', '--save-path', metavar='PATH', default='recorded_data/',
                         dest='save_path', help='Number of frames to run the client')
 argparser.add_argument('-pl', '--planner-path', metavar='PATH', default=None, dest='planner_path',
                         help='Path to planner checkpoint')
@@ -133,7 +155,8 @@ def run_carla_client(host, port, planner_path, save_images_to_disk, image_filena
         frame_durations = MOVING_AVERAGE_LENGTH * [0]
 
         # Load checkpoint
-        model = get_inference_model(planner_path)
+        model = CNNBiasAll() # Set this to the desired model architecture
+        model = get_inference_model(planner_path, model)
         print('MODEL LOADED')
 
         intentions_path = np.genfromtxt( ANNOTATIONS_PATH + 'intentions_path.csv', names=True, delimiter=' ')
@@ -151,7 +174,7 @@ def run_carla_client(host, port, planner_path, save_images_to_disk, image_filena
 
 #-----------Record Measurements-----------------
             measurements, sensor_data = client.read_data()
-
+            print('hej0')
             # Append player measurements for this frame
             pm = saver.get_player_measurements(measurements)
             player_values[frame,:] = pm
@@ -272,6 +295,7 @@ def run_carla_client(host, port, planner_path, save_images_to_disk, image_filena
             di = max(di,np.deg2rad(-STEERING_MAX))
             print("throttle: %.3f, brake: %.3f, steer: %.3f, target_ind: %.3f"
                 %(ai/target_speed, brake, np.rad2deg(di), target_ind))
+#-----------------------------------------------------------------------------
 
             client.send_control(
                 steer=np.rad2deg(di)/STEERING_MAX,
@@ -299,7 +323,7 @@ def run_carla_client(host, port, planner_path, save_images_to_disk, image_filena
         print("Episode ended %s, duration %s"
             % (episode_end.strftime("%Y-%m-%d %H:%M"), episode_time))
 
-def get_inference_model(filename):
+def get_inference_model(filename, model):
     # Check if checkpoint exists
     if os.path.isfile(filename):
         print("Loading model at '{}'".format(filename))
@@ -309,7 +333,6 @@ def get_inference_model(filename):
 
     # Load checkpoint
     checkpoint = torch.load(filename)
-    model = SmallerNetwork2()
     model.cuda()
     model.load_state_dict(checkpoint['state_dict'])
     del checkpoint

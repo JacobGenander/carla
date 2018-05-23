@@ -46,7 +46,7 @@ argparser.add_argument('-c', '--carla-settings', metavar='PATH', default=None,
                         help='Path to a "CarlaSettings.ini" file')
 argparser.add_argument('-f', '--frames', default=100, type=int, dest='frames',
                         help='Number of frames to run the client')
-argparser.add_argument('--save-path', metavar='PATH', default='recorded_data/',
+argparser.add_argument('-s','--save-path', metavar='PATH', default='recorded_data/',
                         dest='save_path', help='Number of frames to run the client')
 #argparser.add_argument('-pl', '--planner-path', metavar='PATH', default=None, dest='planner_path',
 #                        help='Path to planner checkpoint')

@@ -1,0 +1,3 @@
+[submodule "PythonClient/control_module/MPC_drive"]
+	path = PythonClient/control_module/MPC_drive
+	url = https://github.com/JulianoLagana/MPC_drive.git

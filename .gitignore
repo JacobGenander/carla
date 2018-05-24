@@ -1,6 +1,7 @@
 Dist
 Doxygen
 PythonClient/dist
+Unreal/CarlaUE4/carla_long_gear
 Util/Build
 
 *.VC.db

@@ -11,10 +11,7 @@ a path, which is then fed to pure pursuit or the MPC, which in turn produce
 control signals.
 
 Example run:
-python3 client_test_drive.py -f 100
--s '/media/annaochjacob/crucial/recorded_data/carla/tmp_please_remove_me/'
--c CarlaSettings.ini -i -n test_recording_1
--pl '/media/annaochjacob/crucial/models/curriculum_learning/CNNBiasAll_Adam/all_time_best.pt'
+python3 client_test_drive.py -f 100 -s /media/annaochjacob/crucial/recorded_data/carla/tmp_please_remove_me/ -c CarlaSettings.ini -i -n test_recording_1 -pl /media/annaochjacob/crucial/models/curriculum_learning/CNNBiasAll_Adam/all_time_best.pt
 """
 
 from __future__ import print_function
@@ -158,6 +155,7 @@ def run_carla_client(host, port, planner_path, save_images_to_disk, image_filena
         model = CNNBiasAll() # Set this to the desired model architecture
         model = get_inference_model(planner_path, model)
         print('MODEL LOADED')
+        print(model)
 
         intentions_path = np.genfromtxt( ANNOTATIONS_PATH + 'intentions_path.csv', names=True, delimiter=' ')
         traffic_path = np.genfromtxt( ANNOTATIONS_PATH + 'traffic_path.csv', names=True, delimiter=' ')
@@ -222,10 +220,11 @@ def run_carla_client(host, port, planner_path, save_images_to_disk, image_filena
             # Roll previous measurements to behave like a FIFO queue, then insert pm
             prev_measurements = np.roll(prev_measurements,-1,0)
             prev_measurements[N_PAST_STEPS,:] = pm
-            print(prev_measurements[N_PAST_STEPS,:])
+            #print(prev_measurements[N_PAST_STEPS,:])
 
             # Create point cloud
-            lidar = client_util.get_max_elevation(point_cloud)
+            point_cloud = client_util.trim_to_roi(point_cloud) # TODO  should we trim??
+            lidars = client_util.get_max_elevation(point_cloud)
 
             #Calculate intentions
             intention, flag = client_util.GetIntention(prev_measurements, prev_intentions, intentions_path)
@@ -251,12 +250,15 @@ def run_carla_client(host, port, planner_path, save_images_to_disk, image_filena
             input_values = client_util.get_input(prev_measurements,
                 prev_intentions, prev_traffic, N_PAST_STEPS, N_PAST_STEPS)
 
-            lidars = Variable(torch.cuda.FloatTensor(lidar))
-            values = Variable(torch.cuda.FloatTensor(input_values))
-            lidars = lidars.view(-1, 1, 600, 600)
-            values = values.view(-1, 30, 11)
+            # Reshape to desired network input shape
+            lidars = np.reshape(lidars,(1, 1, 600, 600))
+            values = np.reshape(input_values,(1, 30, 11))
 
-            # Run model
+            # Make PyTorch Variables
+            lidars = Variable(torch.cuda.FloatTensor(lidars))
+            values = Variable(torch.cuda.FloatTensor(input_values))
+
+            # Run model to get predicted path
             output = model(lidars, values)
             output = output.data.view(-1,2).cpu().numpy()
 

@@ -280,12 +280,10 @@ class CNNBiasAll(nn.Module):
         self.linear_d2 = nn.Linear(10330,800)
         self.linear_d3 = nn.Linear(800, 300)
         self.linear_d4 = nn.Linear(300, 60)
-
         # Input l: 600 x 600 x 1, v: 30 x 11
     def forward(self, l, v):
         # input
         v = v.view(-1, 30*11)                                   # [2, 330]
-
 
         # encoder
         b = F.elu(self.bias_e0(v))                              # [2, 8]

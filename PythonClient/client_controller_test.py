@@ -7,11 +7,7 @@
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
 
-""" This client uses a neural network to predict the throttle and brake. These
-predictions are then used as control signals, but the steer is still controled
-by the autopilot.
-
-Run: python3.5 client_controller_test.py -c CarlaSettings.ini"""
+"""Run: python3.5 client_controller_test.py -c CarlaSettings.ini"""
 
 from __future__ import print_function
 
@@ -46,6 +42,7 @@ def run_carla_client(args):
 
     matlab_wd = '/home/annaochjacob/Repos/carla/PythonClient/MPC_drive/data/throttle_measurements/'
     eng.addpath(matlab_wd)
+    eng.cd(matlab_wd)
 
     with make_carla_client(args.host, args.port) as client:
         print('client connected')
@@ -80,6 +77,9 @@ def run_carla_client(args):
 
             # Create matrix for holding time, acceleration and throttle, velocity
             values = np.zeros([1,22+4])
+            desired_acc_magnitude = 0
+            desired_acc_vx = 0
+            desired_acc_vy = 0
 
             i = 0
             choose = 1
@@ -98,14 +98,12 @@ def run_carla_client(args):
                 acc_xy = np.array([acceleration_x, acceleration_y])
                 forward_speed = pm[8]
 
-                theta = np.atan(acc_xy*acc_xy/acc_xy)
-                current_acc_v = np.linalg.norm(acc_xy) * np.cos(heading_angle - theta)
+                theta = np.arctan2(acc_xy[1], acc_xy[0])
+                current_acc_v_magnitude = np.linalg.norm(acc_xy) * np.cos(theta - np.deg2rad(heading_angle))
 
                 #compare accelerations:
                 print("magnitude:")
-                print(np.linalg.norm(current_acc_v), desired_acc_magnitude)
-                print('vectors:')
-                print(current_acc_v, desired_acc_v)
+                print(current_acc_v_magnitude, desired_acc_magnitude)
 
                 if frame % 30 == 0:
                     rand = random.random()
@@ -113,21 +111,17 @@ def run_carla_client(args):
 
                 if choose > 0.3:
                     # accelerate
-                    desired_acc_magnitude = rand
+                    desired_acc_magnitude = rand*2
                 else:
                     # decelerate
-                    desired_acc_magnitude = -rand
+                    desired_acc_magnitude = -rand*2
 
                 # Calculate x and y components to match desired acc
-                desired_acc_vx = desired_acc_magnitude * np.cos(np.deg2rad(heading_angle))
-                desired_acc_vy = desired_acc_magnitude * np.sin(np.deg2rad(heading_angle))
-                desired_acc_v = [desired_acc_vx, desired_acc_vy]
                 predicted_throttle, predicted_brake = eng.eval_net_python(float(heading_angle),
                                                                           float(steer),
-                                                                          float(desired_acc_vx),
-                                                                          float(desired_acc_vy),
+                                                                          float(desired_acc_magnitude),
                                                                           float(forward_speed), nargout=2)
-                print(desired_acc_magnitude, predicted_throttle, predicted_brake)
+                #print(desired_acc_magnitude, predicted_throttle, predicted_brake)
 
                 # Set throttle and brake to the predicted values
                 control.throttle = predicted_throttle
@@ -143,8 +137,12 @@ def run_carla_client(args):
                 client.send_control(control)
 
                 # Insert values into table for saving
-                predicted = np.array([desired_acc_x, desired_acc_y, predicted_throttle, predicted_brake])
-                pm = np.concatenate((pm,predicted))
+                more_values = np.array([desired_acc_magnitude,
+                                        current_acc_v_magnitude,
+                                        predicted_throttle,
+                                        predicted_brake])
+
+                pm = np.concatenate((pm, more_values))
                 pm = np.expand_dims(pm,axis=1).transpose()
                 values = np.concatenate([values, pm], axis=0)
 
@@ -156,7 +154,7 @@ def run_carla_client(args):
             # Save measured values
             filename = '/media/annaochjacob/crucial/recorded_data/carla/OTHER2/controller_test/episode_%i.csv' % episode
             header = saver.get_player_measurements_header()
-            header = header + ',desired_acc_x,desired_acc_y,predicted_throttle,predicted_brake'
+            header = header + ',desired_acc_magnitude,current_acc_v_magnitude,predicted_throttle,predicted_brake'
             values = values[1:,:]
             np.savetxt(filename, values, delimiter=',', comments='', fmt='%.4f', header=header)
 

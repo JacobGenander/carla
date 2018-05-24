@@ -222,7 +222,6 @@ def save_info(save_path, settings, args):
             'Recording start: %s' % now.strftime("%Y-%m-%d-%H-%M-%S"),
             'Settings: %s' % args.carla_settings,
             'Frames: %i' % args.frames,
-            'Autopilot: %s' % str(args.autopilot),
-            'Planner: %s' % args.planner_path
+            'Autopilot: %s' % str(args.autopilot)
             ]
         info_file.write('\n'.join(info))

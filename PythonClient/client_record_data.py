@@ -6,7 +6,7 @@
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
-"""This client is used for recording data in CARLA."""
+"""Basic CARLA client example."""
 
 from __future__ import print_function
 
@@ -25,11 +25,7 @@ import numpy as np
 import save_util as saver
 from collections import defaultdict
 import datetime
-import torch
-from network import SmallerNetwork2
-from pure_pursuit import State, PIDControl, pure_pursuit_control, calc_target_index
 import client_util
-from torch.autograd import Variable
 
 argparser = argparse.ArgumentParser(description="Client to collect data.")
 argparser.add_argument('-v', '--verbose', action='store_true',dest='debug',
@@ -48,8 +44,6 @@ argparser.add_argument('-f', '--frames', default=100, type=int, dest='frames',
                         help='Number of frames to run the client')
 argparser.add_argument('-s','--save-path', metavar='PATH', default='recorded_data/',
                         dest='save_path', help='Number of frames to run the client')
-#argparser.add_argument('-pl', '--planner-path', metavar='PATH', default=None, dest='planner_path',
-#                        help='Path to planner checkpoint')
 argparser.add_argument('-n', '--name',metavar='Name',default=None,dest='session_name',
                         help='Name of the recorded session')
 argparser.add_argument('-q', '--quality-level',choices=['Low', 'Epic'],type=lambda s: s.title(),default='Epic',
@@ -61,6 +55,7 @@ if args.session_name == None:
     now = datetime.datetime.now()
     args.session_name = now.strftime("%Y-%m-%d-%H-%M-%S")
 
+args.save_path = '/media/annaochjacob/crucial/recorded_data/carla/' + args.save_path
 SAVE_PATH_SESSION = args.save_path + args.session_name + '/'
 SAVE_PATH_PLAYER = SAVE_PATH_SESSION + 'player_measurements/'
 SAVE_PATH_STATIC = SAVE_PATH_SESSION + 'static_measurements/'
@@ -68,7 +63,6 @@ SAVE_PATH_DYNAMIC = SAVE_PATH_SESSION + 'dynamic_measurements/'
 SAVE_PATH_PREDICTIONS = SAVE_PATH_SESSION + 'generated_output/'
 SAVE_PATH_POINT_CLOUD = SAVE_PATH_SESSION + 'point_cloud/'
 SAVE_PATH_RGB_IMG = SAVE_PATH_SESSION + 'rgb_images/'
-ANNOTATIONS_PATH = '/media/annaochjacob/crucial/annotations/path_2018_03_27/'
 
 N_PAST_STEPS = 30
 MOVING_AVERAGE_LENGTH = 10

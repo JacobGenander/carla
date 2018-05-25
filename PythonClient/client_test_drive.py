@@ -21,6 +21,7 @@ import logging
 import random
 import time
 import os
+import matlab.engine
 
 from carla.client import make_carla_client
 from carla.sensor import Camera
@@ -32,13 +33,14 @@ import save_util as saver
 from collections import defaultdict
 import datetime
 import torch
-from control_module.pure_pursuit import State, PIDControl, pure_pursuit_control, calc_target_index
 import client_util
 from torch.autograd import Variable
-
-# import network architectures
-#from network import SmallerNetwork2
 from cnn_bias import CNNBiasAll
+
+eng = matlab.engine.start_matlab()
+matlab_wd = '/home/annaochjacob/Repos/exjobb/carla/PythonClient/control_module/MPC_drive/carla_testing/'
+eng.addpath(matlab_wd)
+eng.cd(matlab_wd)
 
 #-----------------------------------------------------------------------------------------
 # NOTE!!! This code is needed due to training and driving using different pytorch versions
@@ -72,8 +74,8 @@ argparser.add_argument('-f', '--frames', default=100, type=int, dest='frames',
                         help='Number of frames to run the client')
 argparser.add_argument('-s', '--save-path', metavar='PATH', default='recorded_data/',
                         dest='save_path', help='Number of frames to run the client')
-argparser.add_argument('-pl', '--planner-path', metavar='PATH', default=None, dest='planner_path',
-                        help='Path to planner checkpoint')
+argparser.add_argument('-m', '--model-path', metavar='PATH', default=None, dest='model_path',
+                        help='Full path to model checkpoint')
 argparser.add_argument('-n', '--name',metavar='name',default=None,dest='session_name',
                         help='Name of the recorded session')
 argparser.add_argument('-q', '--quality-level',choices=['Low', 'Epic'],type=lambda s: s.title(),default='Epic',
@@ -85,6 +87,7 @@ if args.session_name == None:
     now = datetime.datetime.now()
     args.session_name = now.strftime("%Y-%m-%d-%H-%M-%S")
 
+args.save_path = '/media/annaochjacob/crucial/recorded_data/carla/' + args.save_path
 SAVE_PATH_SESSION = args.save_path + args.session_name + '/'
 SAVE_PATH_PLAYER = SAVE_PATH_SESSION + 'player_measurements/'
 SAVE_PATH_STATIC = SAVE_PATH_SESSION + 'static_measurements/'
@@ -99,7 +102,7 @@ MOVING_AVERAGE_LENGTH = 10
 STEERING_MAX = 70 # angle in degrees
 
 
-def run_carla_client(host, port, planner_path, save_images_to_disk, image_filename_format, settings_filepath):
+def run_carla_client(host, port, model_path, save_images_to_disk, image_filename_format, settings_filepath):
 
     with make_carla_client(host, port) as client:
         print('CarlaClient connected')
@@ -153,9 +156,8 @@ def run_carla_client(host, port, planner_path, save_images_to_disk, image_filena
 
         # Load checkpoint
         model = CNNBiasAll() # Set this to the desired model architecture
-        model = get_inference_model(planner_path, model)
+        model = get_inference_model(model_path, model)
         print('MODEL LOADED')
-        print(model)
 
         intentions_path = np.genfromtxt( ANNOTATIONS_PATH + 'intentions_path.csv', names=True, delimiter=' ')
         traffic_path = np.genfromtxt( ANNOTATIONS_PATH + 'traffic_path.csv', names=True, delimiter=' ')
@@ -172,7 +174,6 @@ def run_carla_client(host, port, planner_path, save_images_to_disk, image_filena
 
 #-----------Record Measurements-----------------
             measurements, sensor_data = client.read_data()
-            print('hej0')
             # Append player measurements for this frame
             pm = saver.get_player_measurements(measurements)
             player_values[frame,:] = pm
@@ -262,46 +263,45 @@ def run_carla_client(host, port, planner_path, save_images_to_disk, image_filena
             output = model(lidars, values)
             output = output.data.view(-1,2).cpu().numpy()
 
-            # Separate output into x and y
-            rel_x = output[:,0]
-            rel_y = output[:,1]
-            client_util.generate_output(frame, [rel_x, rel_y], SAVE_PATH_PREDICTIONS)
+            # r_coord is coordinates relative to the car, in a 2x30 matrix (rel[0] = x)
+            r_coord = np.transpose(output)
+            client_util.generate_output(frame, r_coord, SAVE_PATH_PREDICTIONS)
 
             # Get current state
-            x, y, yaw, v = pm[2], pm[3], pm[11], pm[8]
-            state = State(x, y, yaw, v/3.6)
+            x, y, yaw, v = float(pm[2]), float(pm[3]), float(pm[11]), float(pm[8])
 
-            # Transform from relative coordinates back into CARLA world coordinates
-            world_x, world_y = client_util.relative_to_world(x, -y, yaw, rel_x, rel_y)
 
-            lastIndex = len(world_x) - 1
-            target_ind = calc_target_index(state, world_x, world_y)
-
-#---------- Calculate steer and throttle using pure pursuit ------------------
+#---------- Calculate steer and throttle using MPC ------------------
             print("x: %.3f, y: %.3f, yaw: %.3f, v: %.3f" %(x,y,yaw,v))
 
-            s = client_util.getEulerDistance((rel_x[0], rel_y[0]),(rel_x[29], rel_y[29]))
-            target_speed = s/(3)
-            target_speed = target_speed*3.6
-            brake = 0.0
-            if v > target_speed:
-                brake = 0.5
+            # Transform from relative coordinates back into CARLA world coordinates
+            w_coord = client_util.relative_to_world(x, -y, yaw, r_coord)
+            w_coord = w_coord.tolist()
 
-            # ai is the difference between current speed and target speed
-            ai = PIDControl(target_speed, state.v) # (More of a P controller...)
+            print(np.shape(w_coord))
+            print(w_coord)
+            print(type(w_coord[0][0]))
+            print(type(x))
+            print(type(y))
+            print(type(yaw))
+            print(type(v))
 
-            # di is the desired steering angle in radians
-            di, target_ind = pure_pursuit_control(state, world_x, world_y, target_ind)
-            # Ensure we stick to car's physical limits
-            di = min(di,np.deg2rad(STEERING_MAX))
-            di = max(di,np.deg2rad(-STEERING_MAX))
-            print("throttle: %.3f, brake: %.3f, steer: %.3f, target_ind: %.3f"
-                %(ai/target_speed, brake, np.rad2deg(di), target_ind))
+            u_optimal, _, _, _ = eng.CARLA_MPC(x, y, yaw, v, w_coord[0], w_coord[1], nargout=4)
+            print(u_optimal)
+            steer = u_optimal[0][0]
+            throttle = u_optimal[0][1]
+            brake = u_optimal[0][2]
+
+
+
 #-----------------------------------------------------------------------------
 
+            print("throttle: %.3f, brake: %.3f, steer: %.3f"
+                    %(throttle, brake, steer))
+
             client.send_control(
-                steer=np.rad2deg(di)/STEERING_MAX,
-                throttle= ai/target_speed,
+                steer=steer,
+                throttle= throttle,
                 brake=brake,
                 hand_brake=False,
                 reverse=False)
@@ -366,7 +366,7 @@ def main():
             run_carla_client(
                 host=args.host,
                 port=args.port,
-                planner_path=args.planner_path,
+                model_path=args.model_path,
                 save_images_to_disk=args.images_to_disk,
                 image_filename_format= SAVE_PATH_RGB_IMG + 'episode_{:0>3d}/{:s}/image_{:0>5d}.png',
                 settings_filepath=args.carla_settings)

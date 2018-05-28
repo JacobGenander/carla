@@ -1,5 +1,6 @@
 import numpy as np
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
+import util
 import math
 import os
 
@@ -8,8 +9,6 @@ ELEVATION_MIN = -18
 RADIUS=3
 
 def main():
-
-
     pm_path = '/media/annaochjacob/crucial/recorded_data/carla/train/apple/player_measurements/pm.csv'
     output_path = '/media/annaochjacob/crucial/dataset/eukaryote/train/apple/right_intention/output/output_10000.csv'
     m_output = np.genfromtxt(output_path, delimiter=',', skip_header=True)
@@ -20,125 +19,25 @@ def main():
     print(m_output[0])
 
     x, y, yaw = m_player[start,[2, 3, 11]]
-    #x,y,yaw = correct_carla_coordinates(x, y, yaw)
+    x,y,yaw = util.correct_carla_coordinates(x, y, yaw)
     print(x,y,yaw)
 
     plt.figure()
 
-    # Plot output in dataset (constructed using get_relative_location)
+    # Plot output in dataset (constructed using old get_relative_location)
     plt.scatter(m_output[0], m_output[1], marker='x', c='r')
 
     for i in range(start,(start+30)):
         # Plot actual path
         new_x, new_y = m_player[i, [2, 3]]
-        #new_x, new_y, _ = correct_carla_coordinates(new_x, new_y, yaw)
-        print(new_x,new_y,yaw)
+        new_x, new_y, _ = util.correct_carla_coordinates(new_x, new_y, yaw)
         plt.scatter(new_x, new_y, marker='.', c='g')
 
-        rel_x, rel_y = get_relative_location(x, y, yaw, new_x, new_y)
+        # Plot the relative coordinates, transformed using world_to_relative
+        rel_x, rel_y = util.world_to_relative(x, y, yaw, [new_x, new_y])
         plt.scatter(rel_x, rel_y, marker='.', c='b')
 
-        rel_x, rel_y = world_to_relative(x, y, yaw, [new_x, new_y])
-        plt.scatter(rel_x, rel_y, marker='.', c='r')
-
-    # Example with multiple points
-    #x = 5
-    #y = 7
-    #yaw = 155
-    #r_coord = [np.zeros(30), np.arange(30)]
-
-    # plot coordinates
-    #plt.figure()
-    #plt.scatter(x, y, marker='o', c='r')
-    #plt.scatter(r_coord[0], r_coord[1], marker='x', c='g')
-
-    # Transform the relative coordinates to world coordinates
-    #w_coord = relative_to_world(x, y, yaw, r_coord)
-    #plt.scatter(w_coord[0], w_coord[1], marker='.', c='b')
-
-    # Transform world coordinates back to relative coordinates
-    #b_coord = world_to_relative(x, y, yaw, w_coord)
-    #plt.scatter(b_coord[0], b_coord[1], marker='.', c='r')
-
-
-    #print(np.shape([r_coord[0], r_coord[0]]))
-    #for i in range(30):
-#        f_x, f_y = get_relative_location(x, -y, yaw, r_coord[0][i], -r_coord[1][i])
-#        plt.scatter(f_x, f_y, marker='.', c='y')
-
     plt.show()
-def correct_carla_coordinates(x,y,yaw):
-    x = x
-    y = -y
-    yaw = -yaw
-    return x,y,yaw
-
-def get_relative_location(x, y, yaw, new_x, new_y):
-    """ Depricated."""
-    # Rotate so heading of car in current frame is upwards
-    theta = np.radians(yaw -90)
-    c, s = np.cos(theta), np.sin(theta)
-    R = np.array(((c,-s), (s, c)))
-    x, y = np.dot(np.transpose([x, y]) ,R) # Clockwise rotation when pos theta
-    new_x, new_y = np.dot(np.transpose([new_x, new_y]) ,R)
-
-    # Shift locations so that location in current frame (x,y) is in origo
-    relative_x = new_x - x
-    relative_y = new_y - y
-    return relative_x, relative_y
-
-def world_to_relative(x, y, yaw, w_coord):
-    # Shift locations so that location (x,y) in current frame is in origo
-    w_coord[0] = w_coord[0] - x
-    w_coord[1] = w_coord[1] - y
-
-    # Rotate so heading of car in current frame is upwards
-    theta = np.radians(-yaw + 90)
-    c, s = np.cos(theta), np.sin(theta)
-    R = [[c,-s],[s,c]]
-    r_coord = np.dot(R, w_coord)
-
-    return r_coord
-
-def relative_to_world(x, y, yaw, r_coord):
-    # Rotate from heading upwards to heading in yaw direction
-    theta = np.radians(yaw - 90)
-    c, s = np.cos(theta), np.sin(theta)
-    R = np.array(((c,-s), (s, c)))
-    w_coord = np.dot(R, r_coord)
-
-    # Shift locations back to current vehicle position
-    w_coord[0] = w_coord[0] + x
-    w_coord[1] = w_coord[1] + y
-    return w_coord
-
-def trim_to_roi(point_cloud,roi=60):
-    """ Remove points outside ROI."""
-    inside_roi = np.max(np.absolute(point_cloud), axis=1) < roi/2
-    return point_cloud[inside_roi]
-
-def get_max_elevation(point_cloud, ROI = 60, CELLS = 600):
-    grid = np.full([CELLS,CELLS,1], np.nan)
-
-    for point in point_cloud:
-        x, y, z = point
-        x += ROI/2
-        x /= ROI
-        cell_x = (int) (x*CELLS) - 1
-
-        y += ROI/2
-        y /= ROI
-        cell_y = (int) (y*CELLS) - 1
-
-        element = grid[cell_x,cell_y]
-        if np.isnan(element) or element < z:
-             grid[cell_x,cell_y] = z
-
-    grid = np.nan_to_num(grid) # Replace all nans with zeros
-    grid = grid/(ELEVATION_MAX - ELEVATION_MIN)
-    grid = grid + 0.5
-    grid = np.rot90(grid,1)
-    return np.uint8(grid*255)
 
 def get_input(measurements, intentions, traffic, frame, n_steps):
     all_inputs = np.zeros([n_steps, 11]) # Create container for past measurements

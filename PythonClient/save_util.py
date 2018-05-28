@@ -10,6 +10,7 @@ DELIMITER = ','
 COMMENTS = ''
 
 def save_point_cloud(frame, point_cloud, save_path):
+    '''Saves a given point cloud in a csv file'''
     filename = save_path + 'pc_%i.csv' %frame
 
     # Reverse y and z because of carla
@@ -26,13 +27,14 @@ def save_point_cloud(frame, point_cloud, save_path):
         csv_file.write(pc)
 
 def save_player_measurements(measurements, save_path):
-    # Save measurements of whole episode to one file
+    '''Save measurements of whole episode to one file.'''
     header_player = get_player_measurements_header()
     np.savetxt(save_path + "/pm.csv", \
         measurements, fmt=MEASUREMENTS_PRECISION, header=header_player, \
         comments=COMMENTS, delimiter=DELIMITER)
 
 def get_player_measurements(measurements):
+    '''Returns an array of all measurements made at a time step'''
     # Separate measurement types
     player = measurements.player_measurements
     control = player.autopilot_control

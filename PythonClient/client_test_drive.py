@@ -106,26 +106,8 @@ def run_carla_client(host, port, model_path, save_images_to_disk, image_filename
 
     with make_carla_client(host, port) as client:
         print('CarlaClient connected')
-        if settings_filepath is None:
-
-            settings = CarlaSettings()
-            settings.set(
-                SynchronousMode=True,
-                SendNonPlayerAgentsInfo=True,
-                NumberOfVehicles=20,
-                NumberOfPedestrians=40,
-                WeatherId=random.choice([1, 3, 7, 8, 14]),
-                QualityLevel=args.quality_level)
-            settings.randomize_seeds()
-
-            camera0 = Camera('CameraRGB')
-            camera0.set_image_size(800, 600)
-            camera0.set_position(30, 0, 130)
-            settings.add_sensor(camera0)
-
-        else:
-            with open(settings_filepath, 'r') as fp:
-                settings = fp.read()
+        with open(settings_filepath, 'r') as fp:
+            settings = fp.read()
 
         scene = client.load_settings(settings)
         number_of_player_starts = len(scene.player_start_spots)

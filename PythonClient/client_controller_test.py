@@ -20,14 +20,12 @@ import math
 import numpy as np
 import matlab.engine
 import scipy.io
-
-from carla.client import make_carla_client
 import save_util as saver
+from carla.client import make_carla_client
 from carla.sensor import Camera, Lidar
 from carla.settings import CarlaSettings
 from carla.tcp import TCPConnectionError
 from carla.util import print_over_same_line
-
 
 def run_carla_client(args):
 

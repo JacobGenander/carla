@@ -5,7 +5,7 @@ from PIL import Image
 ELEVATION_MAX = 6
 ELEVATION_MIN = -18
 
-def trim_to_roi(point_cloud,roi):
+def trim_to_roi(point_cloud,roi=60):
     """ Remove points outside ROI."""
     inside_roi = np.max(np.absolute(point_cloud), axis=1) < roi/2
     return point_cloud[inside_roi]
@@ -29,7 +29,7 @@ def lidar_to_topview(point_cloud, roi, cells):
     grid = np.rot90(grid,1)
     return np.uint8(100*grid)
 
-def get_max_elevation(frame, point_cloud, roi = 60, cells = 600):
+def get_max_elevation(point_cloud, roi = 60, cells = 600):
     ''' Records the highest elevation within each grid cell.'''
     point_cloud = trim_to_roi(point_cloud,roi) # Always trim to roi first
     grid = np.full([cells, cells, 1], np.nan)

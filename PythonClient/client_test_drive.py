@@ -11,7 +11,7 @@ a path, which is then fed to pure pursuit or the MPC, which in turn produce
 control signals.
 
 Example run:
-python3 client_test_drive.py -f 100 -s /media/annaochjacob/crucial/recorded_data/carla/tmp_please_remove_me/ -c CarlaSettings.ini -i -n test_recording_1 -pl /media/annaochjacob/crucial/models/curriculum_learning/CNNBiasAll_Adam/all_time_best.pt
+python3 client_test_drive.py -i -c CarlaSettings.ini -f 100 -s tmp_please_remove_me/ -m /media/annaochjacob/crucial/models/trained_2_epochs/CNNBiasAll_Adam/checkpoint.pt -n test_session_1
 """
 
 from __future__ import print_function
@@ -34,6 +34,7 @@ from collections import defaultdict
 import datetime
 import torch
 import client_util
+import util
 from torch.autograd import Variable
 from cnn_bias import CNNBiasAll
 
@@ -206,8 +207,8 @@ def run_carla_client(host, port, model_path, save_images_to_disk, image_filename
             #print(prev_measurements[N_PAST_STEPS,:])
 
             # Create point cloud
-            point_cloud = client_util.trim_to_roi(point_cloud) # TODO  should we trim??
-            lidars = client_util.get_max_elevation(point_cloud)
+            #point_cloud = util.trim_to_roi(point_cloud) # TODO  should we trim??
+            lidars = util.get_max_elevation(point_cloud)
 
             #Calculate intentions
             intention, flag = client_util.GetIntention(prev_measurements, prev_intentions, intentions_path)
@@ -257,19 +258,11 @@ def run_carla_client(host, port, model_path, save_images_to_disk, image_filename
             print("x: %.3f, y: %.3f, yaw: %.3f, v: %.3f" %(x,y,yaw,v))
 
             # Transform from relative coordinates back into CARLA world coordinates
-            w_coord = client_util.relative_to_world(x, -y, yaw, r_coord)
+            w_coord = util.relative_to_world(x, -y, yaw, r_coord) # TODO when julianos network is retrained, we should do correction before and then not add minuses.
             w_coord = w_coord.tolist()
 
-            print(np.shape(w_coord))
-            print(w_coord)
-            print(type(w_coord[0][0]))
-            print(type(x))
-            print(type(y))
-            print(type(yaw))
-            print(type(v))
-
-            u_optimal, _, _, _ = eng.CARLA_MPC(x, y, yaw, v, w_coord[0], w_coord[1], nargout=4)
-            print(u_optimal)
+            u_optimal, _, _, _ = eng.MPC_wrapper(x, y, yaw, v, w_coord[0][10:N_PAST_STEPS:3], w_coord[1][10:N_PAST_STEPS:3], nargout=4)
+            #print(u_optimal)
             steer = u_optimal[0][0]
             throttle = u_optimal[0][1]
             brake = u_optimal[0][2]

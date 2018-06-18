@@ -58,7 +58,7 @@ def get_input(measurements, intentions, traffic, frame, n_steps):
         new_y = -new_y # NOTE carla coordinate correction
 
         # Notice the minus signs on y and new_y because of carla's world axes!
-        v_rel = world_to_relative(x, y, yaw, [new_x, new_y])
+        v_rel = util.world_to_relative(x, y, yaw, [new_x, new_y])
         acc_x, acc_y, acc_z = measurements[frame_index, [5, 6, 7]]
         v_total_acceleration = get_total_acceleration(acc_x, -acc_y, acc_z) # -acc_y because carla have reversed y axis.
         v_forward_speed = measurements[frame_index, 8]
